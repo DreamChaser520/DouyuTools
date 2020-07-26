@@ -2,12 +2,10 @@ package com.zh.utils;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.ParseException;
-import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -29,31 +27,30 @@ import java.util.*;
  */
 
 public class HttpClientUtil {
-
-    private static RequestConfig requestConfig = null;
     private static String charset = "utf-8";
-
-
-    static {
-        // 设置请求和传输超时时间
-        requestConfig = RequestConfig.custom().setSocketTimeout(5000).setConnectTimeout(5000).build();
-    }
-
 
     /**
      * @param url
      * @param obj 1. json字符串   2. map  3.JSONObject
      * @return JSONObject
      */
-    public static Map<String,Object> httpPost(String url, Object obj) {
+    public static Map<String, Object> httpPost(String url, Object obj, Map<String, String> header) {
         Logger logger = Logger.getLogger(HttpClientUtil.class);
         // 存储json结果和cookies
-        Map<String,Object> result= new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
 
         // post请求返回结果
         BasicCookieStore basicCookieStore = new BasicCookieStore();
         CloseableHttpClient httpClient = HttpClients.custom().setDefaultCookieStore(basicCookieStore).build();
         HttpPost httpPost = new HttpPost(url);
+        // 设置头部参数
+        if (header != null && header.size() > 0) {
+            Set<String> keySet = header.keySet();
+            for (String key : keySet) {
+                httpPost.setHeader(key, header.get(key));
+            }
+        }
+        // 发送Post请求
         try {
             if (null != obj) {
                 StringEntity entity = null;
@@ -68,8 +65,8 @@ public class HttpClientUtil {
             }
             CloseableHttpResponse response = httpClient.execute(httpPost);
             List<Cookie> cookies = basicCookieStore.getCookies();
-            result.put("cookies",cookies);
-            result.put("JSONObject",convertResponse(response));
+            result.put("cookies", cookies);
+            result.put("JSONObject", convertResponse(response));
             return result;
         } catch (Exception e) {
             logger.error("post请求提交失败:" + url, e);
@@ -88,20 +85,28 @@ public class HttpClientUtil {
      * @param
      * @return
      */
-    public static Map<String,Object> httpPostForm(String url, Map<String, String> params) {
+    public static Map<String, Object> httpPostForm(String url, Map<String, String> params, Map<String, String> header) {
         Logger logger = Logger.getLogger(HttpClientUtil.class);
         // 存储json结果和cookies
-        Map<String,Object> result= new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
 
         // post请求返回结果
         BasicCookieStore basicCookieStore = new BasicCookieStore();
         CloseableHttpClient httpClient = HttpClients.custom().setDefaultCookieStore(basicCookieStore).build();
         HttpPost httpPost = new HttpPost(url);
 
+        //设置头部参数
+        if (header != null && header.size() > 0) {
+            Set<String> keySet = header.keySet();
+            for (String key : keySet) {
+                httpPost.setHeader(key, header.get(key));
+            }
+        }
+        // 发送Post请求
         try {
             if (null != params) {
                 //组织请求参数
-                List<NameValuePair> paramList = new ArrayList<NameValuePair>();
+                List<NameValuePair> paramList = new ArrayList<>();
                 if (params != null && params.size() > 0) {
                     Set<String> keySet = params.keySet();
                     for (String key : keySet) {
@@ -109,14 +114,12 @@ public class HttpClientUtil {
                     }
                 }
                 UrlEncodedFormEntity urlEncodedFormEntity = new UrlEncodedFormEntity(paramList, charset);
-                //设置参数格式
-                httpPost.setHeader("referer", "https://passport.douyu.com/member/login");
                 httpPost.setEntity(urlEncodedFormEntity);
             }
             CloseableHttpResponse response = httpClient.execute(httpPost);
             List<Cookie> cookies = basicCookieStore.getCookies();
-            result.put("cookies",cookies);
-            result.put("JSONObject",convertResponse(response));
+            result.put("cookies", cookies);
+            result.put("JSONObject", convertResponse(response));
             return result;
         } catch (IOException e) {
             logger.error("postForm请求提交失败:" + url, e);
@@ -132,26 +135,32 @@ public class HttpClientUtil {
      * @param url 路径
      * @return
      */
-    public static Map<String,Object> httpGet(String url) {
+    public static Map<String, Object> httpGet(String url, Map<String, String> header) {
         Logger logger = Logger.getLogger(HttpClientUtil.class);
         // 存储json结果和cookies
-        Map<String,Object> result= new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
         // get请求返回结果
         BasicCookieStore basicCookieStore = new BasicCookieStore();
         CloseableHttpClient httpClient = HttpClients.custom().setDefaultCookieStore(basicCookieStore).build();
+        // 设置头部参数
+        HttpGet httpGet = new HttpGet(url);
+        if (header != null && header.size() > 0) {
+            Set<String> keySet = header.keySet();
+            for (String key : keySet) {
+                httpGet.setHeader(key, header.get(key));
+            }
+        }
         // 发送get请求
-        HttpGet httpget = new HttpGet(url);
-        httpget.setHeader("referer", "https://passport.douyu.com/member/login");
         try {
-            CloseableHttpResponse response = httpClient.execute(httpget);
+            CloseableHttpResponse response = httpClient.execute(httpGet);
             List<Cookie> cookies = basicCookieStore.getCookies();
-            result.put("cookies",cookies);
-            result.put("JSONObject",convertResponse(response));
+            result.put("cookies", cookies);
+            result.put("JSONObject", convertResponse(response));
             return result;
         } catch (Exception e) {
             logger.error("get请求提交失败:" + url, e);
         } finally {
-            httpget.releaseConnection();
+            httpGet.releaseConnection();
         }
         return null;
     }
@@ -162,7 +171,7 @@ public class HttpClientUtil {
         if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
             // 读取服务器返回过来的json字符串数据
             HttpEntity entity = response.getEntity();
-            String strResult = EntityUtils.toString(entity, "utf-8").replaceAll("\\(","").replaceAll("\\)","");
+            String strResult = EntityUtils.toString(entity, "utf-8").replaceAll("\\(", "").replaceAll("\\)", "");
             // 把json字符串转换成json对象
             return JSONObject.parseObject(strResult);
         } else {
